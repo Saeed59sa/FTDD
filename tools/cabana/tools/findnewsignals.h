@@ -30,6 +30,7 @@ signals:
 private:
   QLineEdit *end_time_edit;
   QLineEdit *blacklist_edit;
+  QLineEdit *whitelist_edit;
   QTableWidget *table;
   QPushButton *search_btn;
 };

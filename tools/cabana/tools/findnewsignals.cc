@@ -45,6 +45,16 @@ FindNewSignalsDlg::FindNewSignalsDlg(QWidget *parent) : QDialog(parent) {
 
     main_layout->addLayout(blacklist_layout);
 
+    QHBoxLayout *whitelist_layout = new QHBoxLayout();
+    whitelist_edit = new QLineEdit(this);
+    whitelist_edit->setPlaceholderText("Comma separated addresses to allow");
+
+    whitelist_layout->addWidget(new QLabel(tr("Whitelist")));
+    whitelist_layout->addWidget(whitelist_edit);
+
+    main_layout->addLayout(whitelist_layout);
+
+
     table = new QTableWidget(this);
     table->setSelectionBehavior(QAbstractItemView::SelectRows);
     table->setSelectionMode(QAbstractItemView::SingleSelection);
@@ -67,11 +77,12 @@ void FindNewSignalsDlg::findNewSignals() {
     }
 
     const auto &events = can->allEvents();
-    QMap<uint32_t, int> address_counts;
+    QMap<QPair<uint32_t, int>, int> address_counts;
     QSet<QString> messages;
+
+    // Process blacklist
     QStringList blacklist_list = blacklist_edit->text().split(",", QString::SkipEmptyParts);
     QSet<uint32_t> blacklist;
-
     for (const QString &address : blacklist_list) {
         bool ok;
         uint32_t addr = address.trimmed().toUInt(&ok, 16);
@@ -82,7 +93,20 @@ void FindNewSignalsDlg::findNewSignals() {
         }
     }
 
-  double first_time = -1.0;  // Initialize to -1 to signify that it's not set yet
+    // Process whitelist
+    QStringList whitelist_list = whitelist_edit->text().split(",", QString::SkipEmptyParts);
+    QSet<uint32_t> whitelist;
+    for (const QString &address : whitelist_list) {
+        bool ok;
+        uint32_t addr = address.trimmed().toUInt(&ok, 16);
+        if (ok) {
+            whitelist.insert(addr);
+        } else {
+            qWarning() << "Invalid address in whitelist:" << address;
+        }
+    }
+
+    double first_time = -1.0;
 
     for (const CanEvent* e : events) {
         if (first_time < 0) {
@@ -90,32 +114,40 @@ void FindNewSignalsDlg::findNewSignals() {
         }
 
         double event_time = e->mono_time / 1e9 - first_time;
-
         QString data_vec = QString::number(e->address) + QString(QByteArray::fromRawData(reinterpret_cast<const char*>(e->dat), e->size));
 
-        if (blacklist.find(e->address) != blacklist.end()) {
+        // Check if the event is in the whitelist if whitelist is non-empty
+        if (!whitelist.isEmpty() && !whitelist.contains(e->address)) {
+            continue;
+        }
+
+        // Skip addresses in the blacklist
+        if (blacklist.contains(e->address)) {
             continue;
         }
 
         if (event_time < target_time) {
             messages.insert(data_vec);
         } else if (event_time < (target_time + 2) && messages.find(data_vec) == messages.end()) {
-            address_counts[e->address]++;
+            address_counts[{e->address, e->src}]++;
             messages.insert(data_vec);
         }
     }
 
+    // Set up table for display
     table->clear();
     table->setRowCount(address_counts.size());
-    table->setColumnCount(3);
-    table->setHorizontalHeaderLabels({"Message Name", "Address", "Count"});
+    table->setColumnCount(4);
+    table->setHorizontalHeaderLabels({"Message Name", "Address", "Bus", "Count"});
 
     int row = 0;
     for (auto it = address_counts.constBegin(); it != address_counts.constEnd(); ++it, ++row) {
-        uint32_t address = it.key();
+        uint32_t address = it.key().first;
+        int bus = it.key().second;
         table->setItem(row, 0, new QTableWidgetItem(msgName({0, address})));
         table->setItem(row, 1, new QTableWidgetItem(QString::number(address, 16)));
-        table->setItem(row, 2, new QTableWidgetItem(QString::number(it.value())));
+        table->setItem(row, 2, new QTableWidgetItem(QString::number(bus)));
+        table->setItem(row, 3, new QTableWidgetItem(QString::number(it.value())));
     }
 }
 
