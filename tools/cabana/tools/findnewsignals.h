@@ -28,6 +28,7 @@ signals:
   void openMessage(const MessageId &msg_id);
 
 private:
+  QLineEdit *start_time_edit;
   QLineEdit *end_time_edit;
   QLineEdit *blacklist_edit;
   QLineEdit *whitelist_edit;

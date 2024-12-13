@@ -25,11 +25,15 @@ FindNewSignalsDlg::FindNewSignalsDlg(QWidget *parent) : QDialog(parent) {
     QVBoxLayout *main_layout = new QVBoxLayout(this);
 
     QHBoxLayout *timestamp_layout = new QHBoxLayout();
+    start_time_edit = new QLineEdit(this);
+    start_time_edit->setPlaceholderText("Time in seconds");
     end_time_edit = new QLineEdit(this);
     end_time_edit->setPlaceholderText("Time in seconds");
 
     search_btn = new QPushButton(tr("&Search"), this);
 
+    timestamp_layout->addWidget(new QLabel(tr("Start time")));
+    timestamp_layout->addWidget(start_time_edit);
     timestamp_layout->addWidget(new QLabel(tr("End time")));
     timestamp_layout->addWidget(end_time_edit);
     timestamp_layout->addWidget(search_btn);
@@ -70,6 +74,7 @@ FindNewSignalsDlg::FindNewSignalsDlg(QWidget *parent) : QDialog(parent) {
 
 void FindNewSignalsDlg::findNewSignals() {
     bool ok1;
+    qint64 start_time = start_time_edit->text().toLongLong(&ok1);
     qint64 target_time = end_time_edit->text().toLongLong(&ok1);
     if (!ok1) {
         qWarning() << "Invalid time input";
@@ -126,7 +131,9 @@ void FindNewSignalsDlg::findNewSignals() {
             continue;
         }
 
-        if (event_time < target_time) {
+        if (start_time > event_time) {
+            continue;
+        } else if (event_time < target_time) {
             messages.insert(data_vec);
         } else if (event_time < (target_time + 2) && messages.find(data_vec) == messages.end()) {
             address_counts[{e->address, e->src}]++;
